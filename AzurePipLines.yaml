@@ -1,0 +1,76 @@
+  
+pool:
+  vmImage: nginx:1.19
+ 
+stages:
+
+- stage: 'Linting_Testing'
+  jobs:
+  - job: 'Linting_Testing'
+    steps:
+    - script: |     
+        python3 -m pip install --upgrade pip
+        pip3 install --upgrade pip && pip3 install Flask && pip3 install pylint
+        wget -O ./hadolint https://github.com/hadolint/hadolint/releases/download/v1.16.3/hadolint-Linux-x86_64 && chmod +x ./hadolint
+      displayName: 'Linting_Testing'
+    - script: |    
+        ./hadolint Dockerfile
+      displayName: 'Linting_Testing'
+      
+      
+
+- stage: 'CodeAnalysis_SonarCloud'
+  jobs:
+  - job: 'CodeAnalysis_SonarCloud'
+    steps:
+    - task: SonarCloudPrepare@1
+      displayName: 'Sonar Cloud conf preparation'
+      inputs:
+        SonarCloud: 'Sonar Cloud Connection'
+        organization: 'gamalkhalil'
+        scannerMode: 'CLI'
+        configMode: 'manual'
+        cliProjectKey: 'gamalkhalil_MyTaskProject'
+        cliSources: '.'      
+    - task: SonarCloudAnalyze@1
+      displayName: 'Analysis of the code'
+
+
+
+- stage: 'Build'
+  jobs:
+  - job: 'Build_Docker'
+    steps:
+    - task: Docker@2
+      displayName: 'Build_Docker'
+      inputs:
+        command: build
+        arguments: --tag jimmyjames.jfrog.io/default-docker-virtual/my_app
+
+
+    - task: ArtifactoryDocker@1
+      displayName: 'Pushing Docker Image to JFrog Artifactory'
+      inputs:
+        command: 'push'
+        artifactoryService: 'JFrog Connection'
+        targetRepo: 'jimmyjames.jfrog.io/default-docker-virtual'
+        imageName: 'jimmyjames.jfrog.io/default-docker-virtual/my_app:latest'
+        
+        
+- stage: 'Deploy'
+  jobs:
+  - job: 'Deploy'
+    steps:
+    - task: ArtifactoryDocker@1
+      inputs:
+        command: 'pull'
+        artifactoryService: 'JFrog Connection'
+        sourceRepo: 'default-docker-virtual'
+        imageName: 'jimmyjames.jfrog.io/default-docker-virtual/my_app:latest'
+      displayName: 'Pull the Image'
+    - task: AWSShellScript@1
+      inputs:
+        awsCredentials: 'AWS Credentials'
+        regionName: us-west-2
+        scriptType: 'inline'
+      displayName: 'Creating the cluster then deploying it'

@@ -1,0 +1,19 @@
+---
+- hosts: localhost
+
+  tasks:
+  - name: create new Namespace
+    k8s:
+      name: NewNamespace
+      api_version: v1
+      kind: Namespace
+      state: present
+      kubeconfig: /work/getting_started_kube_config
+
+  - name: deploy app
+    k8s:
+      name: Deploy_new_app_using_ansible
+      src: /work/new_app.yaml
+      state: present
+      kubeconfig:  /work/getting_started_kube_config
+      namespace: NewNamespace
